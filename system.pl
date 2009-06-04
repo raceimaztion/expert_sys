@@ -6,17 +6,30 @@ assumptions missing/1, who/1, he/1, she/1.
 disease(X):-member(X, [cold, influenza, malaria, measles, mumps]).
 symptom(X):-member(X, [aches, anaemia, coughing, fatigue, fever, headache, 'nasal congestion', rash, 'red eyes', 'runny nose', shivering, 'sore throat', swelling, vomiting]).
 medicine(X):-member(X, [coldFX, 'vitamin C', echinacea]).
+he(X):-member(X, [john, bob, steff]).
+she(X):-member(X, [mary, lydia]).
+name(X):-he(X);she(X).
 
 cold(cold).
 flu(influenza).
 measles(measles).
 mumps(mumps).
 
+doctor(steff).
+patient(X):-member(X, [john, bob, mary]).
+
+has(john, cold).
+has(D, P):-doctor(D),patient(P).
+
 symptom_of(cold, S):-member(S, [coughing, 'nasal congestion', 'runny nose', 'sore throat']).
 symptom_of(flu, S):-member(S, [aches, fatigue, fever, headache]).
 symptom_of(malaria, S):-member(S, [anemia, fever, shivering, vomiting]).
 symptom_of(measles, S):-member(S, [coughing, 'runny nose', 'red eyes', 'red rash']).
 symptom_of(mumps, S):-member(S, [fever, headache, swelling]).
+
+% Predicates to help with answering queries:
+the(_,A,B):-call(A),call(B).
+a(_,A,B):-call(A),call(B).
 
 % Complements:
 complements([],Meaning,Meaning) --> [].
@@ -103,7 +116,7 @@ nounPhrase(Subject, Meaning, Meaning) --> properNoun(Subject).
 nounPhrase(Subject, VerbPhrase, Meaning) --> determinant(Subject, NounPhrase, VerbPhrase, Meaning), pronoun(Subject, NounPhrase).
 
 % Proper nouns: (names)
-properNoun(X) --> [X],{disease(X);symptom(X);member(X, [medicine, cure, symptom, symptoms, disease])}.
+properNoun(X) --> [X],{disease(X);symptom(X);name(X);member(X,[medicine, cure, symptom, symptoms, disease])}.
 
 % "Improper" nouns:
 properNoun(Who) --> [who],{+who(Who)}.
@@ -115,6 +128,8 @@ pronoun(X, flu(X)) --> [flu].
 pronoun(X, cold(X)) --> [cold].
 pronoun(X, measles(X)) --> [measles].
 pronoun(X, mumps(X)) --> [mumps].
+pronoun(X, doctor(X)) --> [doctor].
+pronoun(X, patient(X)) --> [patient].
 
 % Determinants:
 determinant(Subject, NounPhrase, VerbPhrase, the(Subject, NounPhrase, VerbPhrase)) --> [the].

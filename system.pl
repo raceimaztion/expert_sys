@@ -134,3 +134,5 @@ pronoun(X, patient(X)) --> [patient].
 % Determinants:
 determinant(Subject, NounPhrase, VerbPhrase, the(Subject, NounPhrase, VerbPhrase)) --> [the].
 determinant(Subject, NounPhrase, VerbPhrase, a(Subject, NounPhrase, VerbPhrase)) --> [a].
+
+% Adjectives

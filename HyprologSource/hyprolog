@@ -1,0 +1,147 @@
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% A compiler for Hyprolog programs.
+
+% To start hyprolog, you have two options:
+
+% 1 - Place in you working directory, the directory HyprologSource as well as a short file,
+%     also named 'hyprolog', delivered with the system.
+%     Then either ?- [hyprolog]. or ?- compile(hyprolog).
+%
+% 2 - Place in you working directory, all files of the directory HyprologSource.
+%     Then ?- compile(hyprolog).
+
+
+
+% This file defines the following predicate:
+%
+% hyprolog(file)
+% - compiles this file into CHR, prints it into another file, and the compiles
+%   this file with Prolog's compiler
+
+% First the files is scanned for declarations of assumtions and timeless assumptions,
+% everything that looks as an application of these assumptions and expectations
+% is modified in the source file, resulting in a new file which, then,
+% is compiled by Prolog; for the last part, we use  term_expansion
+% in order to translate specific Hyprolog declarations.
+
+
+
+
+:- use_module(library(chr)).
+%%:- use_module(library(terms)).
+:- use_module(library(system)).
+
+:- op(1150,fx, [abducibles,abducible,
+                compaction,compactions,
+                no_duplicates, 
+                assumptions,assumption,
+                timeless_assumptions,timeless_assumption,
+                allow_duplicate_abducibles,
+                no_explicit_negation]).
+
+
+:- op(1200,yfx, where).
+
+:- op(500,fx,[*,=+,=-,=*]).  % In comments below and included files, referred to as assumpOps
+
+%%%%%:- include(termExpandHacks).
+:- include(hyprologScan1).
+:- include(hyprologTextTranslate).
+:- include(hyprologMakeDeleteConRules).
+:- include(hyprologCompileAbducibles).
+:- include(hyprologCompileCompaction).
+:- include(hyprologSpeedUpAssumptions).
+:- include(hyprologCompileAssumptions).
+:- include(hyprologCompileTimelessAssumptions).
+:- include(hyprologTestPrint).
+:- include(hyprologAuxPreds).
+
+hyprolog(SourceFile):-
+    reset_star_plus_proc,
+    retractall(available_abducible_predicate(_,_)),
+    scan1(SourceFile),
+    name(SourceFile,CharList),
+    append(CharList,"Intermediate",IntermediateCharList),
+    name(IntermediateFile,IntermediateCharList),
+    put_quotes_around_assumps(SourceFile,IntermediateFile),
+    compile(IntermediateFile).
+
+
+
+term_expansion((abducibles Specs), Directive):-
+    compileAbduciblesSpec(Specs, Directive).
+
+term_expansion((compaction Specs), Directive):-
+    compileCompactionSpec(Specs,Directive).
+
+term_expansion((assumptions Specs), PrologRules):-
+    compileAssumptionsSpec(Specs,PrologRules).
+
+term_expansion((timeless_assumptions Specs), PrologRules):-
+    compileTimelessAssumptionsSpec(Specs,PrologRules).
+
+term_expansion((allow_duplicate_abducibles), []).   % handled in scan1
+term_expansion((allow_duplicate_abducibles _), []). % handled in scan1
+term_expansion((no_explicit_negation), []).         % handled in scan1
+term_expansion((no_explicit_negation _), []).       % handled in scan1
+term_expansion((show_internal_rules), []).          % handled in scan1
+
+% Alternative spellings
+
+term_expansion((abducible Specs),X):- expand_term((abducibles Specs),X).
+term_expansion((compactions Specs),X):- expand_term((compaction Specs),X).
+term_expansion((assumption Specs),X):- expand_term((assumptions Specs),X).
+term_expansion((timeless_assumption Specs),X):- expand_term((timeless_assumptions Specs),X).
+
+term_expansion((Rule where Goal), Result):-
+    (Goal -> expand_term(Rule, Result)
+     ;
+     write('Error: where-clause failed: <rule> where '),write(Goal),nl,
+       write('HYPROLOG compilation stopped'), abort).
+
+
+
+
+%%%%%%%%% This device specific for the SWI version as
+%%%%%%%%% we need explictly call expand_term when several levels
+%%%%%%%%% of term_expansion are involved,
+%%%%%%%%% used in the files hyprologCompile.....
+
+expand_term_list([],[]).
+expand_term_list([T|Ts],[S|Ss]):-
+    expand_term(T,S),expand_term_list(Ts,Ss).
+   
+

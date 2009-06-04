@@ -1,0 +1,292 @@
+% This source file to be used from file 'hyprolog' as :- include(hyprologTextTranslate).
+
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%
+% Example of the file-to-file translation:
+%   Assume we have assumptions h/1.
+%   The any occurrence of the *text*   -h followed by char wich is not letter, digit, or '_'
+%   is replaces by '-h' etc
+%
+% The system attempts to cope with difficulties caused string constants, quoted atoms, comments,
+% escape characters,  and special syntax for character codes
+ 
+
+
+%% :- op(500,fx,[*,=+,=-,=*]).  % In comments below, referred to as assumpOps
+
+put_quotes_around_assumps(FromFile,Tofile):-
+   see(FromFile),
+   tell(Tofile),
+   put_quotes_around_assumps_automaton,
+   seen, told.
+
+put_quotes_around_assumps_automaton:-
+   put_quotes_around_assumps_automaton(yes). % 'yes' means that assumpOp may start with next char.
+
+put_quotes_around_assumps_automaton(YesNo):-
+  % No or almost any kind of char read
+  get_code(Code),
+  put_quotes_around_assumps_automaton_action_part(YesNo,Code). % separated out for re-use below
+
+put_quotes_around_assumps_automaton_action_part(YesNo,Code):- 
+   Code == -1  -> true
+   ;
+   (Code == 0'+, YesNo==yes)  -> put_quotes_around_assumps_automaton_ident([0'+])
+   ;
+   (Code == 0'-, YesNo==yes)  -> put_quotes_around_assumps_automaton_ident([0'-])
+   ;
+   (Code == 0'*, YesNo==yes)  -> put_quotes_around_assumps_automaton_ident([0'*])
+   ;
+   (Code == 0'=, YesNo==yes)  -> put_quotes_around_assumps_automaton_eq([0'=])
+   ;
+   Code == 0'' -> put_code(Code), skip_quoted_atom_automaton
+   ;
+   Code == 0'" -> put_code(Code), skip_string_constant_automaton
+   ;
+   Code == 0'/  -> put_code(Code), this_may_be_a_slash_star_comment_automaton
+   ;
+   Code == 0'%  -> put_code(Code), this_is_a_percent_comment_automaton
+   ;
+   special_chars_that_cannot_precede_assumOp(Code) ->
+         put_code(Code), put_quotes_around_assumps_automaton(no)
+   ;
+   digit(Code)  -> put_code(Code), potential_funny_sicstus_integer_automaton
+   ;
+   put_code(Code), put_quotes_around_assumps_automaton(yes).
+
+this_may_be_a_slash_star_comment_automaton:-
+  % Slash read
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   Code == 0'*  -> put_code(Code), skip_slash_star_comment_automaton
+   ;
+   Code == 0'/  -> put_code(Code), this_may_be_a_slash_star_comment_automaton
+   ;
+   Code == 0'%  -> put_code(Code), this_is_a_percent_comment_automaton
+   ;
+   digit(Code)  -> put_code(Code), potential_funny_sicstus_integer_automaton
+   ;
+   put_quotes_around_assumps_automaton_action_part(no,Code)).
+
+skip_slash_star_comment_automaton:-
+  % We are inside a backslash-star comment
+  get_code(Code),
+  ( Code == -1  -> true
+    ;
+    Code == 0'* -> put_code(Code), perhaps_end_of_slash_star_comment_automaton
+    ;
+    put_code(Code), skip_slash_star_comment_automaton).
+
+perhaps_end_of_slash_star_comment_automaton:-
+  % A star read inside a backslash-star comment
+  get_code(Code),
+  ( Code == -1  -> true
+    ;
+    Code == 0'* -> put_code(Code), perhaps_end_of_slash_star_comment_automaton
+    ;
+    Code == 0'/ -> put_code(Code), put_quotes_around_assumps_automaton(yes)
+    ;
+    put_code(Code), skip_slash_star_comment_automaton).
+
+this_is_a_percent_comment_automaton:-
+  % We are inside a percent comment
+  get_code(Code),
+  ( Code == -1  -> true
+    ;
+    Code == 0'\n -> put_code(Code), put_quotes_around_assumps_automaton(yes)
+    ;
+    put_code(Code), this_is_a_percent_comment_automaton).
+
+
+put_quotes_around_assumps_automaton_ident(Cs):-
+  % potential assumpOp read
+  get_code(Code),
+  (Code == -1  -> put_codes_reversed(Cs)
+   ;
+   small_letter(Code) -> put_quotes_around_assumps_automaton_rest_ident([Code|Cs])
+   ; 
+   put_codes_reversed(Cs), put_quotes_around_assumps_automaton_action_part(no,Code)).
+
+put_quotes_around_assumps_automaton_eq(Cs):-
+  % an '=' has been read which may start some assumpOps
+  get_code(Code),
+  (Code == -1  -> put_codes_reversed(Cs)
+   ;
+   Code == 0'+  -> put_quotes_around_assumps_automaton_ident([0'+|Cs])
+   ;
+   Code == 0'-  -> put_quotes_around_assumps_automaton_ident([0'-|Cs])
+   ;
+   Code == 0'*  -> put_quotes_around_assumps_automaton_ident([0'*|Cs])
+   ;
+   put_codes_reversed(Cs), put_quotes_around_assumps_automaton_action_part(no,Code)).
+
+put_quotes_around_assumps_automaton_rest_ident(Cs):-
+  % AssumpOp and part of identifier read
+  get_code(Code),
+  (Code == -1  -> put_codes_reversed(Cs)
+   ;
+   non_front_identifier_char(Code)  -> put_quotes_around_assumps_automaton_rest_ident([Code|Cs])
+   ;
+   declared_assumption_operator_reversed_string(Cs) -> 
+          put_codes_reversed_in_quotes(Cs),
+          put_quotes_around_assumps_automaton_action_part(yes,Code)
+               % lexically OK; probably a syn error if 'yes' is relevant
+   ;
+   put_codes_reversed(Cs), put_quotes_around_assumps_automaton_action_part(yes,Code)).
+
+potential_funny_sicstus_integer_automaton:-
+  % digit read; pay special attention to single quote
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   Code == 0''  -> put_code(Code), funny_sicstus_integer_automaton % Now read digit-quote
+   ;
+   Code == 0'+  -> put_quotes_around_assumps_automaton_ident([0'+])
+   ;
+   Code == 0'-  -> put_quotes_around_assumps_automaton_ident([0'-])
+   ;
+   Code == 0'*  -> put_quotes_around_assumps_automaton_ident([0'*])
+   ;
+   Code == 0'=  -> put_quotes_around_assumps_automaton_eq([0'=])
+   ;
+   put_quotes_around_assumps_automaton_action_part(yes,Code)).
+
+funny_sicstus_integer_automaton:-
+  % digit-quote has been read; pay special attention to backslash which is escape char
+  % - no comments, strings or quoted atoms can start here
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   Code == 0'\\ -> put_code(Code), skip_one_char_and_continue_automaton
+   ;
+   put_quotes_around_assumps_automaton_action_part(yes,Code)).
+
+
+skip_one_char_and_continue_automaton:-
+  % used in case digit-quote-backslash has been read
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   put_quotes_around_assumps_automaton_action_part(yes,Code)).
+  
+
+
+skip_quoted_atom_automaton:-
+  get_code(Code), 
+  (Code == -1  -> true
+   ;
+   Code == 0'' -> put_code(Code), put_quotes_around_assumps_automaton(yes)
+   ;
+   Code == 0'\\ -> put_code(Code), skip_escaped_char_within_quoted_atom
+   ;
+   put_code(Code), skip_quoted_atom_automaton).
+
+skip_escaped_char_within_quoted_atom:-
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   put_code(Code), skip_quoted_atom_automaton).
+
+
+skip_string_constant_automaton:-
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   Code == 0'" -> put_code(Code),put_quotes_around_assumps_automaton(yes)
+   ;
+   Code == 0'\\ -> put_code(Code),skip_escaped_char_within_string_constant
+   ;
+   put_code(Code), skip_string_constant_automaton).
+
+skip_escaped_char_within_string_constant:-
+  get_code(Code),
+  (Code == -1  -> true
+   ;
+   put_code(Code), skip_string_constant_automaton).
+
+
+
+%%%%%%%%%%%%%%
+% The following test predicates takes char-codes as arguments
+
+small_letter(C):-
+   (0'a =< C, C =< 0'z)   -> true.
+
+letter(C):- 
+   (0'a =< C, C =< 0'z)   -> true
+   ;
+   (0'A =< C, C =< 0'Z)  -> true.
+
+digit(C):- 0'0 =< C, C =< 0'9, !.
+
+underline(0'_).
+
+non_front_identifier_char(C):-
+    letter(C) -> true
+    ;
+    digit(C)  -> true
+    ;
+    underline(C).
+
+% Special chars that cannot precede or be prefix of assumOp; selection of +-*/\^<>=~:.?@#$
+
+special_chars_that_cannot_precede_assumOp(0'/).
+special_chars_that_cannot_precede_assumOp(0'\\).
+special_chars_that_cannot_precede_assumOp(0'^).
+special_chars_that_cannot_precede_assumOp(0'<).
+special_chars_that_cannot_precede_assumOp(0'>).
+special_chars_that_cannot_precede_assumOp(0'~).
+special_chars_that_cannot_precede_assumOp(0':).
+special_chars_that_cannot_precede_assumOp(0'.).
+special_chars_that_cannot_precede_assumOp(0'?).
+special_chars_that_cannot_precede_assumOp(0'@).
+special_chars_that_cannot_precede_assumOp(0'#).
+special_chars_that_cannot_precede_assumOp(0'$).
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%
+% in the following, reversing so that collecting list can be done without append
+put_codes_reversed([]).
+put_codes_reversed([C|Cs]):- put_codes_reversed(Cs), put_code(C).
+
+put_codes_reversed_in_quotes(Cs):-
+    put_code(0''), put_codes_reversed(Cs), put_code(0'').
+

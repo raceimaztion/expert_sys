@@ -1,0 +1,203 @@
+% This source file to be used from file 'hyprolog' as :- include(hyprologScan1).
+
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+% This file defines predicates that make a first scan of a HYPROLOG
+% source file in order to inform text translation of which assumptions
+% are declared 
+
+:- dynamic declared_abducible/2. % Memo for errorcheck of compaction decl's
+
+:- dynamic declared_timeless_expectation/2. % used for implementing expectation_satisfied predicated.
+
+:- dynamic declared_assumption_operator_reversed_string/1.
+      % to be used in FST than makes textual tranformation of source file
+      
+:- dynamic compacting_abducible/2.
+      % to remember which abducibles that are compaction, as they
+      % do not need a separate "no duplicates" rule
+
+:- dynamic duplicate_abducibles_allowed_for_all/0.
+:- dynamic duplicate_abducibles_allowed/2.
+:- dynamic (no_explicit_negation)/2.
+
+:- dynamic no_explicit_negation_for_all/0.
+
+
+:- dynamic showing_internal_rules/0.
+
+
+scan1(SourceFile):-
+    retractall(declared_assumption_operator_reversed_string(_)),
+    retractall(declared_timeless_expectation(_,_)),
+    retractall(compacting_abducible(_,_)),
+    retractall(duplicate_abducibles_allowed_for_all),
+    retractall(duplicate_abducibles_allowed(_,_)),
+    retractall(no_explicit_negation_for_all),
+    retractall(no_explicit_negation(_,_)),
+    retractall(showing_internal_rules),
+    
+    see(SourceFile),
+    scan1,
+    seen.
+
+scan1:-
+   (read_term(Sentence, [syntax_errors(quiet)]) -> true ; true), 
+   (Sentence == end_of_file -> true
+    ;
+    var(Sentence) -> !, scan1
+    ;
+    Sentence =.. [assumptions,Assumps]
+         -> scan1ProcessAssumps(Assumps), !, scan1
+    ;
+    Sentence =.. [assumption,Assumps]
+         -> scan1ProcessAssumps(Assumps), !, scan1
+    ;
+    Sentence =.. [timeless_assumptions,Assumps]
+         -> scan1ProcessTimelessAssumps(Assumps), !, scan1
+    ;
+    Sentence =.. [timeless_assumption,Assumps]
+         -> scan1ProcessTimelessAssumps(Assumps), !, scan1
+    ;
+    Sentence =.. [compaction,Abducibles]
+         -> scan1ProcessCompactionDecls(Abducibles), !, scan1
+    ;
+    Sentence =.. [compactions,Abducibles]
+         -> scan1ProcessCompactionDecls(Abducibles), !, scan1
+    ;
+    Sentence =.. [allow_duplicate_abducibles]
+         -> assert(duplicate_abducibles_allowed_for_all), !, scan1
+    ;
+    Sentence =.. [allow_duplicate_abducibles,Abducibles]
+         -> scan1ProcessAllowDupsDecls(Abducibles), !, scan1
+    ;
+    Sentence =.. [no_explicit_negation]
+         -> assert(no_explicit_negation_for_all), !, scan1
+    ;
+    Sentence =.. [no_explicit_negation,Abducibles]
+         -> scan1ProcessNoExplicitNegation(Abducibles), !, scan1
+    ;
+    Sentence =.. [show_internal_rules]
+         -> assert(showing_internal_rules), !, scan1
+    ;
+    !, scan1).
+
+
+scan1ProcessAssumps(Var):- var(Var), !. % nonsense; will be found by Prolog compiler later
+
+scan1ProcessAssumps((A,B)):- scan1ProcessAssumps(A), !, scan1ProcessAssumps(B).
+
+scan1ProcessAssumps((Which/_)):-
+    name(Which, WhichChars),
+    reverse([ 0'+ | WhichChars], S1),
+    assert( declared_assumption_operator_reversed_string(S1)),
+    reverse([ 0'- | WhichChars], S2),
+    assert( declared_assumption_operator_reversed_string(S2)),
+    reverse([ 0'* | WhichChars], S3), !,
+    assert( declared_assumption_operator_reversed_string(S3)).
+    
+scan1ProcessAssumps(_). % nonsense; will be found by Prolog compiler later
+
+
+scan1ProcessTimelessAssumps(Var):- var(Var), !. % nonsense; will be found by Prolog compiler later
+
+scan1ProcessTimelessAssumps((A,B)):- scan1ProcessTimelessAssumps(A), !, scan1ProcessTimelessAssumps(B).
+
+scan1ProcessTimelessAssumps((Which/N)):-
+    nameToTimelessExpectation(Which,BlaBlaWhich), % in file hyprologCompileTimelessAssumptions
+    assert(declared_timeless_expectation(BlaBlaWhich,N)),
+    
+    name(Which, WhichChars),
+    reverse([ 0'=, 0'+| WhichChars], S1),
+    assert( declared_assumption_operator_reversed_string(S1)),
+    reverse([ 0'=, 0'- | WhichChars], S2),
+    assert( declared_assumption_operator_reversed_string(S2)),
+    reverse([ 0'=, 0'* | WhichChars], S3), !,
+    assert( declared_assumption_operator_reversed_string(S3)).
+    
+scan1ProcessTimelessAssumps(_). % nonsense; will be found by Prolog compiler later
+
+
+%%%%%%%%%%
+
+scan1ProcessCompactionDecls(Var):- var(Var), !,
+    write('HYPROLOG: Illegal compaction spec.: a variable?!?'), abort.
+
+scan1ProcessCompactionDecls(P/N):- 
+    (var(P) ; var(N)),
+    write('HYPROLOG: Illegal compaction spec.: '), write(P/N), write('?!?'), abort.
+
+scan1ProcessCompactionDecls(P/N):-
+    assert(compacting_abducible(P,N)).
+
+scan1ProcessCompactionDecls((A,B)):-
+    scan1ProcessCompactionDecls(A),
+    scan1ProcessCompactionDecls(B).
+
+%%%%%%%%%%
+
+scan1ProcessAllowDupsDecls(Var):- var(Var), !,
+    write('HYPROLOG: Illegal allow duplicates spec.: a variable?!?'), abort.
+
+scan1ProcessAllowDupsDecls(P/N):- 
+    (var(P) ; var(N)),
+    write('HYPROLOG: Illegal allow duplicates spec.: '), write(P/N), write('?!?'), abort.
+
+scan1ProcessAllowDupsDecls(P/N):-
+    assert(duplicate_abducibles_allowed(P,N)).
+
+scan1ProcessAllowDupsDecls((A,B)):-
+    scan1ProcessAllowDupsDecls(A),
+    scan1ProcessAllowDupsDecls(B).
+    
+%%%%%%%%%%
+
+scan1ProcessNoExplicitNegation(Var):- var(Var), !,
+    write('HYPROLOG: Illegal no explicit negation spec.: a variable?!?'), abort.
+
+
+scan1ProcessNoExplicitNegation(P/N):- 
+    (var(P) ; var(N)),
+    write('HYPROLOG: Illegal no explicit negation spec.: '), write(P/N), write('?!?'), abort.
+
+scan1ProcessNoExplicitNegation(P/N):-
+    assert(no_explicit_negation(P,N)).
+
+scan1ProcessNoExplicitNegation((A,B)):-
+    scan1ProcessNoExplicitNegation(A),
+    scan1ProcessNoExplicitNegation(B).
+

@@ -1,0 +1,175 @@
+% This source file to be used from file 'hyprolog' as :- include(hyprologCompileTimelessAssumptions).
+
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+compileTimelessAssumptionsSpec(Specs,Result):-
+    constraintSpecFromTimelessAssumptionsSpec(Specs,AssSpecs),
+          test_print_chr_code((:- chr_constraint AssSpecs)),
+    rulesToAvoidRepeatedTimelessIntuitionisticAssumps(Specs,AvoidRules),
+          test_print_chr_code(AvoidRules),
+    ruleForTimelessExpectationsToMeetAssumptions(Specs,MeetRules),
+          test_print_chr_code(MeetRules),
+    ruleForRemovingTimelessLinearAssumpsAndExpectations(Specs,RemoveRules),
+          test_print_chr_code(RemoveRules),
+    
+    append([(:- chr_constraint AssSpecs)|AvoidRules],MeetRules,R1),
+    append(R1,RemoveRules,ResultIntermediate),
+    
+    expand_term_list(ResultIntermediate,Result). % SWI specific
+
+
+
+constraintSpecFromTimelessAssumptionsSpec(Var,_):- var(Var), !,
+    write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort.
+
+constraintSpecFromTimelessAssumptionsSpec((P,Q),(NP,NQ)):- 
+    constraintSpecFromTimelessAssumptionsSpec(P,NP),
+    constraintSpecFromTimelessAssumptionsSpec(Q,NQ).
+
+constraintSpecFromTimelessAssumptionsSpec(P/Arity,(PLA/Arity,PIA/Arity,PE/Arity,
+                                          RemovePLA/Arity,RemovePE/Arity)):-
+     nameToTimelessLinearAssump(P,PLA),
+     nameToTimelessIntuitionisticAssump(P,PIA),
+     nameToTimelessExpectation(P,PE),
+     
+     removeConstraintPredName(PLA,RemovePLA), 
+     removeConstraintPredName(PE,RemovePE).
+
+
+%%%%%%%%%%%%%%%%
+
+rulesToAvoidRepeatedTimelessIntuitionisticAssumps((A,B), ARBR):-
+   rulesToAvoidRepeatedTimelessIntuitionisticAssumps(A,AR),
+   rulesToAvoidRepeatedTimelessIntuitionisticAssumps(B,BR),
+   append(AR,BR,ARBR).
+
+rulesToAvoidRepeatedTimelessIntuitionisticAssumps(A/N, [(Ass \ Ass <=> true)]):-
+   nameToTimelessIntuitionisticAssump(A,AIS),
+   length(Args,N),
+   Ass=.. [AIS | Args].
+
+%%%%%%%%%%%%%%%%%
+
+ruleForRemovingTimelessLinearAssumpsAndExpectations((A,B), ARBR):-
+   ruleForRemovingTimelessLinearAssumpsAndExpectations(A,AR),
+   ruleForRemovingTimelessLinearAssumpsAndExpectations(B,BR),
+   append(AR,BR,ARBR).
+
+ruleForRemovingTimelessLinearAssumpsAndExpectations(A/N, [Rule1,Rule2]):-
+   nameToTimelessExpectation(A,TE),
+   removeConstraintRule(TE/N,Rule1),
+   nameToTimelessLinearAssump(A,TLA),
+   removeConstraintRule(TLA/N,Rule2).
+
+
+
+%%%%%%%%%%%%%%%%
+
+ruleForTimelessExpectationsToMeetAssumptions((A,B), ARBR):-
+   ruleForTimelessExpectationsToMeetAssumptions(A,AR),
+   ruleForTimelessExpectationsToMeetAssumptions(B,BR),
+   append(AR,BR,ARBR).
+
+% Three almost identical rules for arities 0, 1, >1
+
+
+ruleForTimelessExpectationsToMeetAssumptions(P/0,
+    [(E,LA ==> true | RemovExp, RemoveLinA ; true),
+     (E,IA ==> true | RemovExp ; true)]):-
+!,
+   nameToTimelessExpectation(P,E),
+
+   nameToTimelessLinearAssump(P,LA),
+
+   nameToTimelessIntuitionisticAssump(P,IA),
+
+   removeConstraintCall(E,RemovExp),
+   removeConstraintCall(LA,RemoveLinA).
+
+
+ruleForTimelessExpectationsToMeetAssumptions(P/1,
+    [(Exp,LinAss ==> true | RemovExp, RemoveLinA, Unify ; true),
+     (Exp,IntAss ==> true | RemovExp, Unify ; true)]):-
+!,
+   nameToTimelessExpectation(P,E),
+   Exp=.. [E, ArgE],
+
+   nameToTimelessLinearAssump(P,LA),
+   LinAss=.. [LA, ArgA],
+
+   nameToTimelessIntuitionisticAssump(P,IA),
+   IntAss=.. [IA, ArgA],
+
+   removeConstraintCall(Exp,RemovExp),
+   removeConstraintCall(LinAss,RemoveLinA),
+      
+   Unify = (ArgE=ArgA).
+
+ruleForTimelessExpectationsToMeetAssumptions(P/N,
+    [(Exp,LinAss ==> true | RemovExp, RemoveLinA, Unify ; true),
+     (Exp,IntAss ==> true | RemovExp, Unify ; true)]):-
+
+   nameToTimelessExpectation(P,E),
+   length(ArgsE,N),
+   Exp=.. [E | ArgsE],
+
+   nameToTimelessLinearAssump(P,LA),
+   length(ArgsA,N),
+   LinAss=.. [LA | ArgsA],
+
+   nameToTimelessIntuitionisticAssump(P,IA),
+   IntAss=.. [IA | ArgsA],
+
+   removeConstraintCall(Exp,RemovExp),
+   removeConstraintCall(LinAss,RemoveLinA),
+   
+   ArgsETerm=.. [v|ArgsE],
+   ArgsATerm=.. [v|ArgsA],
+   
+   Unify = (ArgsETerm=ArgsATerm).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+nameToTimelessLinearAssump(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("=+",NameP,Fido), name(A,Fido).
+
+nameToTimelessIntuitionisticAssump(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal timeless assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("=*",NameP,Fido), name(A,Fido).
+
+nameToTimelessExpectation(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal timeless assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("=-",NameP,Fido), name(A,Fido).

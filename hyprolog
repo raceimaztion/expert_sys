@@ -1,0 +1,54 @@
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%% THIS FILE is simply a starter which goes starts the files in HyprologSource catalogue
+%%% which should be in your working directory.
+
+%%% If you want to place the HYPROLOG source files somewhere else, you should modify
+%%% the following fact accordingly.
+
+hyprologWorkingCatalogue('HyprologSource/').
+
+
+:- use_module(library(lists)).
+
+addPrefixToFileName(F,WF):-
+    hyprologWorkingCatalogue(W), name(W,WW), name(F,FF),
+    append(WW,FF,WWFF), name(WF,WWFF).
+
+:- addPrefixToFileName(hyprolog,H), compile(H).
+
+
+:- nl,nl, write('Welcome to the HYPROLOG system; version SWI.0.2,'),
+          write('released 19 oct 2008'),nl,nl.

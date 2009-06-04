@@ -1,0 +1,200 @@
+% This source file to be used from file 'hyprolog' as :- include(hyprologCompileAbducibles).
+
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+:- dynamic available_abducible_predicate/2. % Memo for errorcheck of compaction decl's
+
+compileAbduciblesSpec(Specs, Result):-
+    %% retractall(available_abducible_predicate(_,_)),
+    %% Moved to file 'hyprolog, predicate hyprolog/1, as to allow for more than one abd. decl.
+    
+    negativeSpecs(Specs,NegSpec),
+
+    removerSpecs(Specs,RemSpec),
+
+    removeDummyPlaceHoldersInCommaStructure((Specs,NegSpec,RemSpec),AllSpecs),
+          test_print_chr_code((:- chr_constraint AllSpecs)),
+
+    removeDummyPlaceHoldersInCommaStructure((Specs,NegSpec),AllSpecsButRems),
+
+
+    assertExistenceOfAbducibles(AllSpecsButRems), 
+
+    noDuplicateAbduciblesRules(AllSpecsButRems,NoDupRules),
+          test_print_chr_code(NoDupRules),
+
+    explicitNegationRules(Specs,NegationRules),
+          test_print_chr_code(NegationRules),
+
+    removeConstraintRules(Specs,RemConRules),
+          test_print_chr_code(RemConRules),
+
+    append([(:- chr_constraint AllSpecs) | NoDupRules], NegationRules, R1),
+    append(R1, RemConRules, ResultIntermediate),
+    
+    expand_term_list(ResultIntermediate,Result). % SWI specific
+
+
+negativeSpecs(Var,_):- var(Var), !,
+    write('HYPROLOG: Illegal abducibles'' spec.: a variable?!?'), abort.
+
+negativeSpecs((P,Q),(NP,NQ)):- negativeSpecs(P,NP), negativeSpecs(Q,NQ).
+
+negativeSpecs(P/N,dummyToBeRemoved):-
+   (no_explicit_negation_for_all
+    ;
+    no_explicit_negation(P,N)),
+   !.
+    
+negativeSpecs(P/Arity,NotP/Arity):-
+     negateAbduciblePredicate(P,NotP).
+
+
+removerSpecs((P,Q),(NP,NQ)):- removerSpecs(P,NP), removerSpecs(Q,NQ).
+
+removerSpecs(P/N,RemPN):-
+   (no_explicit_negation_for_all
+    ;
+    no_explicit_negation(P,N)),!,
+   removerSpecsAux(P/N,RemPN).
+    
+removerSpecs(P/Arity,(RemPDecl, RemNotPDecl)):-
+     removerSpecsAux(P/Arity,RemPDecl),
+     negateAbduciblePredicate(P,NotP),
+     removerSpecsAux(NotP/Arity,RemNotPDecl).
+
+removerSpecsAux(PP/Arity, RemPP/Arity):-
+   compacting_abducible(PP,Arity),
+   !,
+   removeConstraintPredName(PP,RemPP).
+
+removerSpecsAux(_, dummyToBeRemoved).
+
+%%%%
+
+explicitNegationRules((P,Q),NPQP):-
+    explicitNegationRules(P,NP),
+    explicitNegationRules(Q,NQ),
+    append(NP,NQ,NPQP).
+
+explicitNegationRules(P/N, []):-
+   (no_explicit_negation_for_all
+    ;
+    no_explicit_negation(P,N)),
+   !.
+
+explicitNegationRules(P/N, [(PAtom, NotPAtom ==> fail)]):-
+   length(As,N),
+   PAtom=.. [P|As],
+   negateAbduciblePredicate(P,NP),
+   NotPAtom=.. [NP|As].
+%%%%
+
+removeConstraintRules((P,Q),NPQP):-
+    removeConstraintRules(P,NP),
+    removeConstraintRules(Q,NQ),
+    append(NP,NQ,NPQP).
+
+removeConstraintRules(P/N, [R1]):-
+   (no_explicit_negation_for_all
+    ;
+    no_explicit_negation(P,N)),!,
+   removeConstraintRuleAux(P/N,R1).
+
+removeConstraintRules(P/N, [R1,R2]):-
+     negateAbduciblePredicate(P,NotP),
+     removeConstraintRuleAux(P/N,R1),
+     removeConstraintRuleAux(NotP/N,R2).
+%%%%%
+
+
+removeConstraintRuleAux(P/N,R1):-
+    compacting_abducible(P,N), !,
+    removeConstraintRule(P/N,R1).
+
+removeConstraintRuleAux(_,[]).
+%%%%
+
+noDuplicateAbduciblesRules((P,Q),NPQP):-
+    noDuplicateAbduciblesRules(P,NP),
+    noDuplicateAbduciblesRules(Q,NQ),
+    append(NP,NQ,NPQP).
+
+noDuplicateAbduciblesRules(P/N, []):-
+    (duplicate_abducibles_allowed_for_all
+     ;
+     duplicate_abducibles_allowed(P,N)
+     ;
+     compacting_abducible(P,N)),
+    !.
+    
+noDuplicateAbduciblesRules(P/N, [(PAtom\PAtom <=> true)]):-
+   length(As,N),
+   PAtom=.. [P|As].
+
+
+%%%%
+
+assertExistenceOfAbducibles((A,B)):-
+    assertExistenceOfAbducibles(A),
+    assertExistenceOfAbducibles(B).
+
+assertExistenceOfAbducibles(P/N):-
+    assert(available_abducible_predicate(P,N)).
+
+%%%%
+
+negateAbduciblePredicate(P,NotP):-
+     (var(P) -> write('HYPROLOG: Illegal abducibles'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append(NameP,"_",NameNotP), name(NotP,NameNotP).
+
+%%%%
+
+removeDummyPlaceHoldersInCommaStructure((dummyToBeRemoved,C), Cx):- !,
+   removeDummyPlaceHoldersInCommaStructure(C,Cx).
+
+removeDummyPlaceHoldersInCommaStructure((C,dummyToBeRemoved), Cx):- !,
+   removeDummyPlaceHoldersInCommaStructure(C,Cx).
+
+removeDummyPlaceHoldersInCommaStructure((A,B),Res):-
+    !,
+    removeDummyPlaceHoldersInCommaStructure(A,Ax),
+    removeDummyPlaceHoldersInCommaStructure(B,Bx),
+    (Ax==dummyToBeRemoved -> Res = Bx
+     ;
+     Bx==dummyToBeRemoved -> Res = Ax
+     ;
+     Res = (Ax,Bx)).
+
+removeDummyPlaceHoldersInCommaStructure(X,X).

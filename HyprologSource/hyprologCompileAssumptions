@@ -1,0 +1,227 @@
+% This source file to be used from file 'hyprolog' as :- include(hyprologCompileAbducibles).
+
+% HYPROLOG
+% - a logic programming system with abduction and assumptions
+%
+% Concept developed by Henning Christiansen & Veronica Dahl
+%
+% Implemented and maintained by Henning Christiansen
+%
+% (c) 2008 Henning Christiansen, Roskilde University, DENMARK
+
+% Version HYPROLOG SWI.0.2
+% Last edited 19 oct 2008
+%
+% Adaptation of version 0.0 from 2005
+
+% Web site for HYPROLOG: http://www.ruc.dk/~henning/hyprolog/
+
+% Web site provides this source code running under SWI Prolog,
+% documentation, scientific papers on the subject, and sample files.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%% HYPROLOG can be downloaded and used for free for any peaceful and %%%%%%%% 
+%%%%%%%% non-commercial purpose.                                           %%%%%%%%
+%%%%%%%% Running HYPROLOG requires a Prolog system. It is the sole         %%%%%%%%
+%%%%%%%% responsibility of any HYPROLOG user to clear any possible legal   %%%%%%%%
+%%%%%%%% issues with the supplier of the relevant Prolog system.           %%%%%%%%  
+%%%%%%%% The developers take no responsibility for any consequences of the %%%%%%%%
+%%%%%%%% use of this software.                                             %%%%%%%%
+%%%%%%%% For possible commercial applications, or if any doubts concerning %%%%%%%%
+%%%%%%%% these conditions, please write to the implementor.                %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+compileAssumptionsSpec(Specs,Result):-
+    constraintSpecFromAssumptionsSpec(Specs,AssSpecs),
+          test_print_chr_code((:- chr_constraint AssSpecs)),
+    rulesForAssumptions(Specs, Rules),
+          test_print_chr_code(Rules),
+    
+    expand_term_list([(:- chr_constraint AssSpecs)|Rules],Result). % SWI specific
+
+
+
+constraintSpecFromAssumptionsSpec(Var,_):- var(Var), !,
+    write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort.
+
+constraintSpecFromAssumptionsSpec((P,Q),(NP,NQ)):- 
+    constraintSpecFromAssumptionsSpec(P,NP), constraintSpecFromAssumptionsSpec(Q,NQ).
+
+
+
+constraintSpecFromAssumptionsSpec(P/Arity,(PIA/Arity,PE/Arity)):-
+     plus_assump_disabled, !,
+     %% + = linear:  nameToLinearAssump(P,PLA),
+     %%              removeConstraintPredName(PLA,RemovePLA), 
+     nameToIntuitionisticAssump(P,PIA),
+     nameToExpectation(P,PE).
+
+constraintSpecFromAssumptionsSpec(P/Arity,(PLA/Arity,PE/Arity,RemovePLA/Arity)):-
+     star_assump_disabled, !,
+     nameToLinearAssump(P,PLA),
+     removeConstraintPredName(PLA,RemovePLA), 
+     %% star = Intuitionistic: nameToIntuitionisticAssump(P,PIA),
+     nameToExpectation(P,PE).
+
+
+constraintSpecFromAssumptionsSpec(P/Arity,(PLA/Arity,PIA/Arity,PE/Arity,RemovePLA/Arity)):-
+     nameToLinearAssump(P,PLA),
+     removeConstraintPredName(PLA,RemovePLA), 
+     nameToIntuitionisticAssump(P,PIA),
+     nameToExpectation(P,PE).
+
+%%%%%%%%%%%%%%%%%
+
+rulesForAssumptions(Specs, Rules):-
+    plus_assump_disabled, !,
+    rulesToAvoidRepeatedIntuitionisticAssumps(Specs,AvoidRules),
+    ruleForExpectationsToMeetAssumptions(Specs,MeetRules),
+    append(AvoidRules,MeetRules,Rules).
+
+
+rulesForAssumptions(Specs, Rules):-
+    star_assump_disabled, !,
+    ruleForExpectationsToMeetAssumptions(Specs,MeetRules),
+    ruleForRemovingLinearAssumps(Specs,RemoveRules),
+    append(MeetRules,RemoveRules,Rules).
+
+
+rulesForAssumptions(Specs, Rules):-
+    rulesToAvoidRepeatedIntuitionisticAssumps(Specs,AvoidRules),
+    ruleForExpectationsToMeetAssumptions(Specs,MeetRules),
+    ruleForRemovingLinearAssumps(Specs,RemoveRules),
+    append(AvoidRules,MeetRules,R2),
+    append(R2,RemoveRules,Rules).
+
+
+%%%%%%%%%%%%%%%%
+
+rulesToAvoidRepeatedIntuitionisticAssumps((A,B), ARBR):-
+   rulesToAvoidRepeatedIntuitionisticAssumps(A,AR),
+   rulesToAvoidRepeatedIntuitionisticAssumps(B,BR),
+   append(AR,BR,ARBR).
+
+rulesToAvoidRepeatedIntuitionisticAssumps(A/N, [(Ass \ Ass <=> true)]):-
+   nameToIntuitionisticAssump(A,AIS),
+   length(Args,N),
+   Ass=.. [AIS | Args].
+
+%%%%%%%%%%%%%%%%
+
+ruleForRemovingLinearAssumps((A,B), ARBR):-
+   ruleForRemovingLinearAssumps(A,AR),
+   ruleForRemovingLinearAssumps(B,BR),
+   append(AR,BR,ARBR).
+
+ruleForRemovingLinearAssumps(A/N, [Rule]):-
+   nameToLinearAssump(A,ALA),
+   removeConstraintRule(ALA/N,Rule).
+
+%%%%%%%%%%%%%%%%
+
+ruleForExpectationsToMeetAssumptions((A,B), ARBR):-
+   ruleForExpectationsToMeetAssumptions(A,AR),
+   ruleForExpectationsToMeetAssumptions(B,BR),
+   append(AR,BR,ARBR).
+
+%% Three almost identical rules for different arities
+
+ruleForExpectationsToMeetAssumptions(P/0, [(Exp <=> Body)]):-
+!,
+   nameToExpectation(P,Exp),
+   nameToLinearAssump(P,LinAss),
+   removeConstraintCall(LinAss,RemoveLinAss),
+   nameToIntuitionisticAssump(P,IntAss),
+   
+   make_body_for_ruleForExpectationsToMeetAssumptions(
+        ( chr:find_chr_constraint(LinAss),
+           RemoveLinAss
+        ),
+        chr:find_chr_constraint(IntAss),
+        Body).
+
+
+ruleForExpectationsToMeetAssumptions(P/1, [(Exp <=> Body)]):-
+!,
+   nameToExpectation(P,E),
+   Exp=.. [E, ArgE],
+
+   nameToLinearAssump(P,LA),
+   LinAss=.. [LA, ArgLin], 
+   
+   removeConstraintCall(LinAss,RemoveLinAss),
+   
+   nameToIntuitionisticAssump(P,IA),
+   IntAss=.. [IA, ArgE],
+   
+   make_body_for_ruleForExpectationsToMeetAssumptions(
+       ( chr:find_chr_constraint(LinAss),
+           RemoveLinAss,
+           ArgE=ArgLin),
+       chr:find_chr_constraint(IntAss),
+       Body).
+
+
+
+
+ruleForExpectationsToMeetAssumptions(P/N, [(Exp <=> Body)]):-
+
+   nameToExpectation(P,E),
+   length(ArgsE,N),
+   Exp=.. [E | ArgsE],
+   ArgsETerm=.. [v|ArgsE],
+
+   length(ArgsLin,N),
+   nameToLinearAssump(P,LA),
+   LinAss=.. [LA | ArgsLin], 
+   ArgsLinTerm=.. [v|ArgsLin],
+   
+   removeConstraintCall(LinAss,RemoveLinAss),
+   
+   nameToIntuitionisticAssump(P,IA),
+   IntAss=.. [IA | ArgsE],
+   
+   make_body_for_ruleForExpectationsToMeetAssumptions(
+           ( chr:find_chr_constraint(LinAss),
+           RemoveLinAss,
+           ArgsETerm=ArgsLinTerm
+           ),
+           chr:find_chr_constraint(IntAss),
+   Body).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+make_body_for_ruleForExpectationsToMeetAssumptions(_,ForStar,ForStar):-
+   plus_assump_disabled, !.
+
+make_body_for_ruleForExpectationsToMeetAssumptions(ForPlus,_,ForPlus):-
+   star_assump_disabled, !.
+
+make_body_for_ruleForExpectationsToMeetAssumptions(ForPlus,ForStar,
+        (true | ForPlus ; ForStar)).
+   
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%
+
+nameToLinearAssump(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("+",NameP,Fido), name(A,Fido).
+
+nameToIntuitionisticAssump(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("*",NameP,Fido), name(A,Fido).
+
+nameToExpectation(P,A):-
+     (var(P) -> write('HYPROLOG: Illegal assumptions'' spec.: a variable?!?'), abort ; true),
+     name(P,NameP), append("-",NameP,Fido), name(A,Fido).
+
+nameToPrologAssumpSearch(P,PP):-
+        name(P,NameP), append(NameP,"_choiceOfAssumption",Fido), name(PP,Fido).
+

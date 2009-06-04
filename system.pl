@@ -21,6 +21,7 @@ nurse(lydia).
 
 has(john, cold).
 has(D, P):-doctor(D),patient(P).
+has(D, N):-doctor(D),nurse(N).
 
 symptom_of(cold, S):-member(S, [coughing, 'nasal congestion', 'runny nose', 'sore throat']).
 symptom_of(flu, S):-member(S, [aches, fatigue, fever, headache]).

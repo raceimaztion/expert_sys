@@ -17,6 +17,7 @@ mumps(mumps).
 
 doctor(steff).
 patient(X):-member(X, [john, bob, mary]).
+nurse(lydia).
 
 has(john, cold).
 has(D, P):-doctor(D),patient(P).
@@ -130,6 +131,7 @@ pronoun(X, measles(X)) --> [measles].
 pronoun(X, mumps(X)) --> [mumps].
 pronoun(X, doctor(X)) --> [doctor].
 pronoun(X, patient(X)) --> [patient].
+pronoun(X, nurse(X)) --> [nurse].
 
 % Determinants:
 determinant(Subject, NounPhrase, VerbPhrase, the(Subject, NounPhrase, VerbPhrase)) --> [the].

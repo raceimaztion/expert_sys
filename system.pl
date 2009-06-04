@@ -19,6 +19,7 @@ doctor(steff).
 patient(X):-member(X, [john, bob, mary]).
 nurse(lydia).
 
+had(bob, influenza).
 has(john, cold).
 has(D, P):-doctor(D),patient(P).
 has(D, N):-doctor(D),nurse(N).
@@ -42,57 +43,7 @@ complement([PrepPhrase,Subject], Meaning1, Meaning) --> preposition(PrepPhrase),
 % Prepositions:
 preposition('FIRST') --> [].
 preposition(X) --> [X],{preposition(X)}.
-preposition(about).
-preposition(above).
-preposition(across).
-preposition(after).
-preposition(against).
-preposition(along).
-preposition(among).
-preposition(around).
-preposition(at).
-preposition(before).
-preposition(behind).
-preposition(below).
-preposition(beneath).
-preposition(beside).
-preposition(between).
-preposition(beyond).
-preposition(but).
-preposition(by).
-preposition(despite).
-preposition(down).
-preposition(during).
-preposition(except).
-preposition(for).
-preposition(from).
-preposition(in).
-preposition(inside).
-preposition(into).
-preposition(like).
-preposition(near).
-preposition(of).
-preposition(off).
-preposition(on).
-preposition(onto).
-preposition(out).
-preposition(outside).
-preposition(over).
-preposition(past).
-preposition(since).
-preposition(through).
-preposition(throughout).
-preposition(till).
-preposition(to).
-preposition(toward).
-preposition(under).
-preposition(underneath).
-preposition(until).
-preposition(up).
-preposition(upon).
-preposition(with).
-preposition(within).
-preposition(without).
+preposition(X):-member(X,[about, above, across, after, against, along, among, around, at, before, behind, below, beneath, beside, between, beyond, but, by, despite, down, during, except, for, from, in, inside, into, like, near, of, off, on, onto, out, outside, over, past, since, through, throughout, till, to, toward, under, underneath, until, up, upon, with, within, without]).
 
 % Sentence fragment:
 fragment(Meaning) --> nounPhrase(Subject, VerbPhrase, Meaning), verbPhrase(Subject, VerbPhrase).
@@ -102,6 +53,7 @@ verbPhrase(NounPhrase, Meaning) --> verb(NounPhrase, VerbPhrase, L), complements
 
 verb(Subject, is(Subject, Subject2), [['FIRST', Subject2]]) --> ['is'].
 verb(Subject, as(Subject, Subject2), [['FIRST', Subject2]]) --> [as].
+verb(Subject, had(Subject, Object), [['FIRST', Object]]) --> [had].
 verb(Subject, has(Subject, Object), [['FIRST', Object]]) --> [has].
 verb(Subject, have(Subject, Object), [['FIRST', Object]]) --> [have].
 verb(Subject, causes(Subject, Subject2), [['FIRST', Subject2]]) --> [causes].

@@ -1,6 +1,6 @@
 % This requires Hyprolog
 :-consult(hyprolog).
-assumptions missing/1, who/1, he/1, she/1.
+assumptions missing/1, ref/1.
 
 % Database:
 disease(X):-member(X, [cold, influenza, malaria, measles, mumps]).
@@ -73,9 +73,9 @@ nounPhrase(Subject, VerbPhrase, Meaning) --> determinant(Subject, NounPhrase, Ve
 properNoun(X) --> [X],{disease(X);symptom(X);name(X);member(X,[medicine, cure, symptom, symptoms, disease])}.
 
 % "Improper" nouns:
-properNoun(Who) --> [who],{+who(Who)}.
-properNoun(He) --> [he],{+he(He)}.
-properNoun(She) --> [she],{+she(She)}.
+properNoun(Who) --> [who],{+ref(who(Who))}.
+properNoun(He) --> [he],{+ref(he(He))}.
+properNoun(She) --> [she],{+ref(she(She))}.
 
 % Pronouns:
 pronoun(X, flu(X)) --> [flu].
@@ -91,3 +91,8 @@ determinant(Subject, NounPhrase, VerbPhrase, the(Subject, NounPhrase, VerbPhrase
 determinant(Subject, NounPhrase, VerbPhrase, a(Subject, NounPhrase, VerbPhrase)) --> [a].
 
 % Adjectives
+
+
+
+% Solver for answering queries
+

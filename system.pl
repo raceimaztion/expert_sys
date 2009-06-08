@@ -1,6 +1,6 @@
 % This requires Hyprolog
 :-consult(hyprolog).
-assumptions ref/1, proof/1.
+assumptions ref/1, proof/1, given_true/1, given_false/1.
 
 % ====== Database: ======
 disease(X):-member(X, [cold, influenza, malaria, measles, mumps]).
@@ -88,14 +88,17 @@ verb(Subject, symptom_of(Object, Subject), [['FIRST', Object]]) --> [symptom], [
 nounPhrase(Subject, Meaning, Meaning) --> properNoun(Subject).
 nounPhrase(Subject, VerbPhrase, Meaning) --> determinant(Subject, NounPhrase, VerbPhrase, Meaning), pronoun(Subject, NounPhrase).
 
+nounPhrase(Count, VerbPhrase, (setof(X, Meaning, List),length(List, Count))) --> [how],[many], nounPhrase(X, VerbPhrase, Meaning).
+
 % Proper nouns: (names)
-properNoun(X) --> [X],{disease(X);symptom(X);name(X);member(X,[medicine, cure, symptom, symptoms, disease])}.
+properNoun(X) --> [X],{disease(X);symptom(X);name(X);member(X,[medicine, cure, symptom, symptoms])}.
 
 % "Improper" nouns:
 properNoun(Who) --> [who],{+ref(Who)}.
 properNoun(He) --> [he],{+ref(He)}.
 properNoun(She) --> [she],{+ref(She)}.
 properNoun(What) --> [what],{+ref(What)}.
+%properNoun(HowMany) --> [how],[many],{+ref(HowMany)}.
 
 % Pronouns:
 pronoun(X, flu(X)) --> [flu].
@@ -116,11 +119,16 @@ determinant(Subject, NounPhrase, VerbPhrase, a(Subject, NounPhrase, VerbPhrase))
 
 
 % Solver for answering queries
+% Normal solver
 solve(true, _, true) :- !.
 solve(not(A), Rules, not(ProofA)) :- not(solve(A, Rules, ProofA)).
 solve((A, B), Rules, (ProofA, ProofB)) :- !, solve(A, Rules, ProofA), solve(B, Rules, ProofB).
 solve(A, Rules, (A:-ProofB)) :- clause(A, B), solve(B, [(A:-B)|Rules], ProofB).
-solve(A, Rules, (A:-given)) :- ask_user(A, Rules).
+% Check if we know about this already
+solve(A, Rules, (A:-given_already)) :- -given_true(A).
+solve(A, Rules, fail) :- -given_false(A), !, fail.
+% Otherwise, ask the user
+solve(A, Rules, (A:-given)) :- ask_user(A, Rules), *given_true(A).
 
 ask_user(A, Rules):- write(A), write('? Enter true if the goal is true, false otherwise'), nl,
                     read(Answer), ask_respond(Answer, A, Rules).

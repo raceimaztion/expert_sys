@@ -10,18 +10,18 @@ assumptions ref/1, count/1, missing/1.
 ask :- read_atomics(Input), query(Results, Input, []), write(Results), nl.
 
 query(Problem) --> [what,is,the,problem,'?'],{problemSolver(Problem)}.
-query(Results) --> fragment(Results),['.'].
-query('') --> fragment(Meaning),['?'],{respond(Meaning)}.
+query(Results) --> sentence(Results),['.'].
+query('') --> sentence(Meaning),['?'],{respond(Meaning)}.
+
+problem:-problemSolver(problem(Problem)),nl,write('The problem is: '),write(Problem);
+	nl,write('The problem cannot be determined.').
 
 % ====== GRAMMAR: ======
 % ======================
 
-% Sentence fragment:
-fragment(Meaning) --> fragment(_, Meaning).
-fragment(Subject, Meaning) --> nounPhrase(Subject, _, Meaning).
-fragment(Subject, Meaning) --> nounPhrase(Subject, VerbPhrase, Meaning), verbPhrase(Subject, VerbPhrase).
+sentence(Meaning) --> nounPhrase(Subject, VerbPhrase, Meaning), verbPhrase(Subject, VerbPhrase).
 
-% Noun phrase:
+%%%%% Noun phrase: %%%%%
 nounPhrase(Subject, Meaning, Meaning) --> properNoun(Subject).
 nounPhrase(Subject, VerbPhrase, Meaning) --> whWord(Subject, NounPhrase, Meaning),
                                              nounPhrase(Subject, VerbPhrase, NounPhrase), !.
@@ -33,12 +33,12 @@ nounPhrase(Subject, VerbPhrase, Meaning) --> determiner(Subject, AdjPhrase, Verb
 
 nounPhrase(Subject, Meaning, Meaning) --> {-missing(Subject)}.
 
-% Determiners:
+%%%%% Determiners: %%%%%
 determiner(Subject, NounPhrase, VerbPhrase, the(Subject, NounPhrase, VerbPhrase)) --> [the].
 determiner(Subject, NounPhrase, VerbPhrase, a(Subject, NounPhrase, VerbPhrase)) --> [a].
 determiner(Subject, NounPhrase, VerbPhrase, of(Subject, NounPhrase, VerbPhrase)) --> [of].
 
-% Prepositions:
+%%%%% Prepositions: %%%%%
 preposition(nil) --> [].
 preposition(X) --> [X],{preposition(X)}.
 preposition(X):-member(X,[about, above, across, after, against, along, among, around, at, before, behind, below, beneath, beside, between, beyond, but, by, despite, down, during, except, for, from, in, inside, into, like, near, of, off, on, onto, out, outside, over, past, since, through, throughout, till, to, toward, under, underneath, until, up, upon, with, within, without]).
@@ -83,14 +83,14 @@ verb(Subject, has(Subject, Object), [[nil, Object]]) --> [has].
 verb(Subject, have(Subject, Object), [[nil, Object]]) --> [have].
 verb(Subject, causes(Subject, Subject2), [[nil, Subject2]]) --> [causes];[cause].
 verb(Subject, cured(Subject), []) --> [cured].
-verb(Subject, cures(Subject, Subject2), [[nil, Subject2]]) --> [cures].
+verb(Subject, cures(Subject, Subject2), [[nil, Subject2]]) --> [cures];[can,cure];[may,cure].
+verb(Subject, treats(Subject2, Subject), [[nil, Subject2]]) --> [treats];[treatment,for].
 verb(Subject, transmitted(Subject, Object), [[nil, Object]]) --> [transmitted].
 verb(Subject, transmitted(Subject, Object, Subject2), [[nil, Object], [to, Subject2]]) --> [transmitted].
 verb(Subject, got(Subject, Object), [[nil, Object]]) --> [got].
 verb(Subject, got(Subject, Object, Subject2), [[nil, Object], [from, Subject2]]) --> [got].
 verb(Subject, gave(Subject, Object, Subject2), [[nil, Object], [to, Subject2]]) --> [gave].
-verb(Subject, symptom_of(Object, Subject), [[nil, Object]]) --> [symptom], [of].
-verb(Subject, symptom_of(Object, Subject), [[nil, Object]]) --> [symptoms], [of].
+verb(Subject, symptom_of(Object, Subject), [[nil, Object]]) --> [symptom,of];[symptoms,of].
 verb(Subject, are_sick(Subject), []) --> [are,sick];[are,ill].
 
 % Proper nouns: (names)
@@ -107,18 +107,15 @@ commonNoun(X, nurse(X)) --> [nurse].
 commonNoun(X, solve(problem(X))) --> [problem].
 commonNoun(X, symptom(X)) --> [symptoms].
 commonNoun(X, disease(X)) --> [disease];[diseases].
-%commonNoun(X, medicine(X)) --> [medicine].
 
 % Plural common nouns:
 pluralCommonNoun(X, disease(X)) --> [diseases].
 pluralCommonNoun(X, doctor(X)) --> [doctors].
 pluralCommonNoun(X, patient(X)) --> [patients].
 pluralCommonNoun(X, nurse(X)) --> [nurses].
-%pluralCommonNoun(X, medicine(X)) --> [medicines].
 
 % Relative clauses:
-relativeClause(Subject, Noun, and(Noun, R)) --> [of],{+missing(Subject)}, fragment(_, R).
-relativeClause(Subject, Noun, and(Noun, R)) --> [that],{+missing(Subject)}, fragment(_, R).
+relativeClause(Subject, Noun, and(Noun, R)) --> [that],{+missing(Subject)}, sentence(_, R).
 relativeClause(_,Noun,Noun) --> [].
 
 %%% End of grammar %%%
@@ -143,6 +140,9 @@ problemSolver(Problem) :- write('Please answer yes or no to the following list o
 solve(A) :- retractall(given_true(_)), retractall(given_false(_)),
             solve(A, [], _).
 
+% Askable questions:
+askable(X):-symptom(X).
+
 % Normal solver
 solve(true, _, true) :- !.
 solve(not(A), Rules, not(ProofA)) :- not(solve(A, Rules, ProofA)).
@@ -159,7 +159,7 @@ solve(A, Rules, (A:-given)) :- askable(A), ((ask_user(A, Rules), assert(given_tr
 
 ask_user(A, Rules):- write(A), write('?'), nl,
                     read(Answer), ask_respond(Answer, A, Rules).
-ask_respond(yes, _, _).
+ask_respond(Answer, _, _):-member(Answer,[true,y,yes,yup,sure]).
 ask_respond(why, A, [Rule|Rules]):- write(Rule), nl, ask_user(A, Rules).
 ask_respond(why, A, []):- ask_user(A, []).
 
@@ -172,7 +172,7 @@ respond(Meaning) :- -ref(X), setof(X, Meaning, Result), display_list(Result), !.
 
 disease(X):-member(X, [cold, influenza, malaria, measles, mumps]).
 symptom(X):-member(X, [aches, anemia, coughing, fatigue, fever, headache, nasal_congestion, rash, red_eyes, runny_nose, shivering, sore_throat, swelling, vomiting]).
-medicine(X):-member(X, [coldFX, 'vitamin C', echinacea]).
+medicine(X):-member(X, [coldFX, coldinator, 'flu-nuker', 'undo-the-influenz(a)', 'mumps-away', 'de-measler']).
 he(X):-member(X, [john, bob, steff]).
 she(X):-member(X, [mary, lydia]).
 name(X):-he(X);she(X).
@@ -208,7 +208,20 @@ causes(D, S) :- symptom_of(D, S).
 
 % Medcine cure:
 cures(coldFX, cold).
-%cures(
+cures(coldinator, cold).
+cures('flu-nuker', influenza).
+cures('undo-the-influenz(a)', influenza).
+cures('mumps-away', mumps).
+cures('de-measler', measles).
+
+treats(cold, 'boiled pine needles').
+treats(influenza, 'fried eye of newt').
+treats(malaria, 'boiled mosquito wings').
+treats(measles, 'deep-fried frogs legs').
+treats(mumps, 'warts from a toad').
+
+deadly(malaria).
+deadly(influenza).
 
 % Disease rules:
 problem(cold) :- coughing, nasal_congestion, runny_nose, sore_throat.
@@ -222,7 +235,4 @@ hot(_).
 bad(_).
 sick(_).
 high(_).
-
-% Askable questions:
-askable(X):-symptom(X).
 

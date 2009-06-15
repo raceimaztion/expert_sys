@@ -1,6 +1,6 @@
 % This requires Hyprolog
 :-consult(hyprolog).
-assumptions ref/1, proof/1, count/1, missing/1.
+assumptions ref/1, count/1, missing/1.
 :-dynamic given_true/1, given_false/1.
 :-consult('readatom.pl').
 
@@ -11,7 +11,7 @@ ask :- read_atomics(Input), query(Results, Input, []), write(Results), nl.
 
 query(Problem) --> [what,is,the,problem,'?'],{problemSolver(Problem)}.
 query(Results) --> fragment(Results),['.'].
-query(Results) --> fragment(Results),['?'],{-ref(What)}.
+query('') --> fragment(Meaning),['?'],{respond(Meaning)}.
 
 % ====== GRAMMAR: ======
 % ======================
@@ -54,12 +54,12 @@ whWord(What,M,M) --> [what],{+ref(What)}.
 whWord(What,M,M) --> [what,are], {+ref(What)}.
 whWord(People,M,M) --> [people], {+ref(People)}.
 
-whWord(Subject,VP,and(disease(Subject), VP)) --> [disease],{+ref(Subject)}.
-whWord(Subject,VP,and(disease(Subject), VP)) --> [diseases],{+ref(Subject)}.
-whWord(Subject,VP,and(symptom(Subject), VP)) --> [symptom],{+ref(Subject)}.
-whWord(Subject,VP,and(symptom(Subject), VP)) --> [symptoms],{+ref(Subject)}.
-whWord(Subject,VP,and(medicine(Subject), VP)) --> [medicine],{+ref(Subject)}.
-whWord(Subject,VP,and(medicine(Subject), VP)) --> [medicines],{+ref(Subject)}.
+whWord(Subject,VP,and(disease(Subject), VP)) --> [disease].%,{+ref(Subject)}.
+whWord(Subject,VP,and(disease(Subject), VP)) --> [diseases].%,{+ref(Subject)}.
+whWord(Subject,VP,and(symptom(Subject), VP)) --> [symptom].%,{+ref(Subject)}.
+whWord(Subject,VP,and(symptom(Subject), VP)) --> [symptoms].%,{+ref(Subject)}.
+whWord(Subject,VP,and(medicine(Subject), VP)) --> [medicine].%,{+ref(Subject)}.
+whWord(Subject,VP,and(medicine(Subject), VP)) --> [medicines].%,{+ref(Subject)}.
 
 whWord(He, VerbPhrase, and(he(He),VerbPhrase)) --> [he],{+ref(He)}.
 whWord(She, VerbPhrase, and(she(She), VerbPhrase)) --> [she],{+ref(She)}.
@@ -138,8 +138,9 @@ and(A, B) :- call(A), call(B).
 how_many(X, M, Length) :- setof(X, M, Result), length(Result, Length).
 
 %%% Solver for answering queries: %%%
+problemSolver(Problem) :- write('Please answer yes or no to the following list of symptoms:'), nl,
+                          solve(problem(Problem)).
 solve(A) :- retractall(given_true(_)), retractall(given_false(_)),
-            write('Please answer yes or no to the following list of symptoms:'), nl,
             solve(A, [], _).
 
 % Normal solver
@@ -158,7 +159,7 @@ solve(A, Rules, (A:-given)) :- askable(A), ((ask_user(A, Rules), assert(given_tr
 
 ask_user(A, Rules):- write(A), write('?'), nl,
                     read(Answer), ask_respond(Answer, A, Rules).
-ask_respond(true, _, _).
+ask_respond(yes, _, _).
 ask_respond(why, A, [Rule|Rules]):- write(Rule), nl, ask_user(A, Rules).
 ask_respond(why, A, []):- ask_user(A, []).
 
